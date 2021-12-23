@@ -19,12 +19,10 @@ help:
 .docker/.env:
 	cp $(DOCKER_COMPOSE_DIR)/.env.example $(DOCKER_COMPOSE_DIR)/.env
 
-.PHONY: docker-clean
-docker-clean: ## Remove the .env file for docker
-	rm -f $(DOCKER_COMPOSE_DIR)/.env
-
-.PHONY: docker-init
-docker-init: .docker/.env ## Make sure the .env file exists for docker
+.PHONY: docker-build
+docker-build: docker-init ## Build all docker images. Build a specific image by providing the service name via: make docker-build CONTAINER=<service>
+	$(DOCKER_COMPOSE) build --parallel $(CONTAINER) && \
+	$(DOCKER_COMPOSE) up -d --force-recreate $(CONTAINER)
 
 .PHONY: docker-build-from-scratch
 docker-build-from-scratch: docker-init ## Build all docker images from scratch, without cache etc. Build a specific image by providing the service name via: make docker-build CONTAINER=<service>
@@ -32,27 +30,33 @@ docker-build-from-scratch: docker-init ## Build all docker images from scratch, 
 	$(DOCKER_COMPOSE) build --pull --no-cache --parallel $(CONTAINER) && \
 	$(DOCKER_COMPOSE) up -d --force-recreate $(CONTAINER)
 
-.PHONY: docker-test
-docker-test: docker-init docker-up ## Run the infrastructure tests for the docker setup
-	sh $(DOCKER_COMPOSE_DIR)/docker-test.sh
+.PHONY: docker-clean
+docker-clean: ## Remove the .env file for docker
+	rm -f $(DOCKER_COMPOSE_DIR)/.env
 
-.PHONY: docker-build
-docker-build: docker-init ## Build all docker images. Build a specific image by providing the service name via: make docker-build CONTAINER=<service>
-	$(DOCKER_COMPOSE) build --parallel $(CONTAINER) && \
-	$(DOCKER_COMPOSE) up -d --force-recreate $(CONTAINER)
+.PHONY: docker-down-remove
+docker-down-remove: docker-init ## Stop and remove all docker containers. To only stop one container, use CONTAINER=<service>
+	$(DOCKER_COMPOSE) down $(CONTAINER)
+
+.PHONY: docker-exec
+docker-exec: ## Enter in PHP container bash
+	$(DOCKER_COMPOSE) exec -u www-data php bash
+
+.PHONY: docker-init
+docker-init: .docker/.env ## Make sure the .env file exists for docker
 
 .PHONY: docker-prune
 docker-prune: ## Remove unused docker resources via 'docker system prune -a -f --volumes'
 	docker system prune -a -f --volumes
 
+.PHONY: docker-stop
+docker-stop: docker-init ## Stop all docker containers. To only stop one container, use CONTAINER=<service>
+	$(DOCKER_COMPOSE) stop $(CONTAINER)
+
+.PHONY: docker-test
+docker-test: docker-init docker-up ## Run the infrastructure tests for the docker setup
+	sh $(DOCKER_COMPOSE_DIR)/docker-test.sh
+
 .PHONY: docker-up
 docker-up: docker-init ## Start all docker containers. To only start one container, use CONTAINER=<service>
 	$(DOCKER_COMPOSE) up -d $(CONTAINER)
-
-.PHONY: docker-down
-docker-down: docker-init ## Stop all docker containers. To only stop one container, use CONTAINER=<service>
-	$(DOCKER_COMPOSE) down $(CONTAINER)
-
-.PHONY: docker-exec
-docker-exec: ## Exec container command, use CONTAINER=<service>
-	$(DOCKER_COMPOSE) exec php bash
